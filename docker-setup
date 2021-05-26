@@ -1,0 +1,43 @@
+#!/bin/bash
+set -e
+
+docker_user=$1
+
+if [ -z $docker_user ]; then
+	echo "run ./docker-setup user"
+	exit 1
+fi
+
+if [[ $EUID -ne 0 ]]; 
+then
+	echo "need to run as root!"
+	exit 1
+fi
+
+dnf install -y yum-utils
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum install -y docker-ce docker-ce-cli containerd.io
+
+if grep -q SELINUX=enforcing /etc/selinux/config; 
+then 
+	sed -i 's/SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config	 
+else 
+	echo "SELinux disabled" 
+fi
+
+swapoff -va 
+
+echo "Disabling swap!"
+
+sleep 1
+
+grep -F -v swap /etc/fstab > /etc/fstab.new && mv /etc/fstab.new /etc/fstab
+
+systemctl enable docker
+usermod -aG docker $docker_user
+
+echo "rebooting in 3 seconds"
+
+sleep 3
+
+reboot now
